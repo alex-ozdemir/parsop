@@ -1,14 +1,14 @@
 package parsop.parser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Stack;
 
+import parsop.grammar.CloseGroup;
 import parsop.grammar.Grammar;
 import parsop.grammar.GrammarException;
+import parsop.grammar.OpenGroup;
 import parsop.grammar.Operation;
 import parsop.grammar.Token;
 import parsop.util.ListStream;
@@ -16,33 +16,88 @@ import parsop.util.ListStream;
 /**
  * This is the core of the Operator Parser system.
  * 
- * The central idea behind the algorithm used here (credits:
- * https://www.youtube.com/watch?v=n5UWAaw_byw) is to maintain 2 stacks, one
- * of expressions and one of operations. 
+ * The central idea behind the algorithm is to translate the incoming stream to
+ * reverse Polish notation, and then build an AST from that (credits to Nika).
+ * This involves two stacks.
  * 
- * The first of these is the expressionStack, which at any given point holds
- * valid sub-expressions that can be found in the string we are parsing.
- * Expressions that occur earlier in the string are deeper in the stack. This
- * stack is constantly changing as new basic expressions are added and existing
- * expressions are combined. Hopefully the expressionStack holds only a single
- * expression at the end of the parse - the one corresponding to the entire
- * string.
+ * The first of these is the reversePolishStack, on which the RPS equivalent of
+ * the input is built. Identifiers from the input go directly onto this stack.
  * 
- * The second stack is the tokenStack. Tokens (Operations or Identifiers) are
- * put on the stack in the order that they occure in the string, according to
- * the following rules:
+ * The second stack is the tokenStack. Operations or Groupers are put on the
+ * stack in the order that they occur in the string, according to the following
+ * rules:
  *    1. The stack begins with a "START" token.
- *    2. When a new token is read from the string, if it has higher precedence
- *       than the top token on the stack, the new token is placed on the stack.
- *       If not, then the token on the top of the stack is built - it has the
- *       correct number of operands pulled from the expressionStack, it combines
- *       those operands, and the result goes on the expressionStack. The new
- *       token is not removed from the input string in this case
- *    3. Identifiers are treated as having the highest precedence and require no
- *       operands to build. The "START" token has the lowest precedence.
- *    4. In this way, low precedence operators remain on the stack until the 
- *       string to the right of the has been built into a complete expression
- *       (or until a lower precedence operator is reached)
+ *    2. When a new Operation is read from the string, if it has higher
+ *       precedence than the top token on the stack, the new token is placed 
+ *       on the stack. If not, then the top of the tokenStack is transfered to
+ *       the RPS stack.
+ *    3. Groupers are given the 2nd lowest precedence (after
+ *       the start and end symbols). However, when a grouper is read from the 
+ *       input, the rules are different: An open grouper is always put on the
+ *       tokenStack and when a close grouper is read, tokens are transfered
+ * 		 from the token stack to the RPS stack until the matching open grouper
+ *       is found. The open grouper is also put on the RPS stack, and is then
+ *       treated as a Unary operator (so the AST reflects which grouper was
+ *       used to manipulate precedence). Note that groupers only have precedence
+ *       because when an open grouper is on the top of the stack in need be
+ *       compared to other operations.
+ *    4. START and END have the lowest precedence.
+ * 
+ * Example: Normal Arithmetic:
+ * 
+ * RPS       : 
+ * TokenStack: START 
+ * Input     : 1 + 2 * ( 3 + 4 ) END
+ * 
+ * RPS       : 1 
+ * TokenStack: START 
+ * Input     : + 2 * ( 3 + 4 ) END
+ * 
+ * RPS       : 1 
+ * TokenStack: START + 
+ * Input     : 2 * ( 3 + 4 ) END
+ * 
+ * RPS       : 1 2 
+ * TokenStack: START + 
+ * Input     : * ( 3 + 4 ) END
+ * 
+ * RPS       : 1 2 
+ * TokenStack: START + * 
+ * Input     : ( 3 + 4 ) END
+ * 
+ * RPS       : 1 2 
+ * TokenStack: START + * ( 
+ * Input     : 3 + 4 ) END
+ * 
+ * RPS       : 1 2 3 
+ * TokenStack: START + * ( 
+ * Input     : + 4 ) END
+ * 
+ * RPS       : 1 2 3 
+ * TokenStack: START + * ( + 
+ * Input     : 4 ) END
+ * 
+ * RPS       : 1 2 3 4 
+ * TokenStack: START + * ( + 
+ * Input     : ) END
+ * 
+ * RPS       : 1 2 3 4 + ( 
+ * TokenStack: START + * 
+ * Input     : END
+ * 
+ * RPS       : 1 2 3 4 + ( * 
+ * TokenStack: START + 
+ * Input     : END
+ * 
+ * RPS       : 1 2 3 4 + ( * + 
+ * TokenStack: START 
+ * Input     : END
+ * 
+ * RPS       : 1 2 3 4 + ( * + 
+ * TokenStack: START END 
+ * Input     :
+ * 
+ * Done!
  * 
  * @author aozdemir
  *
@@ -55,8 +110,8 @@ public class Parser {
 	boolean verbose;
 
 	// Members refreshed for each parse
-	SyntaxChecker syntaxChecker;
-	Stack<AST> expressions;
+	// SyntaxChecker syntaxChecker;
+	Stack<Token> reversePolishStack;
 	Stack<Token> tokenStack;
 	ListStream<Token> tokenStream;
 
@@ -64,7 +119,7 @@ public class Parser {
 		try {
 			grammar = Grammar.fromFile(filename);
 			tokenizer = new Tokenizer(grammar);
-			syntaxChecker = new SyntaxChecker(grammar);
+			// syntaxChecker = new SyntaxChecker(grammar);
 			this.verbose = verbose;
 		} catch (GrammarException e) {
 			e.printStackTrace();
@@ -78,12 +133,13 @@ public class Parser {
 		processTokens();
 		if (verbose)
 			dumpState();
-		if (expressions.size() > 1)
-			throw new ParseException(
-					"Not actally sure what is wrong here, but there seem to be too few tokens:\n"
-							+ input);
-		else
-			return expressions.pop();
+		return processReversePolish();
+	}
+
+	private AST processReversePolish() {
+		Token top = reversePolishStack.pop();
+		return top.build(reversePolishStack);
+		// TODO: extra tokens on stack? Error?
 	}
 
 	private void processTokens() throws ParseException {
@@ -96,26 +152,57 @@ public class Parser {
 
 	private void processToken() throws ParseException {
 		Token next = tokenStream.peek();
-		if (isLeftHigherPrecedence(tokenStack.peek(), next)) {
-			popToken();
-		} else {
-			pushToken();
-		}
+		if (next.isIdentifier())
+			reversePolishStack.push(takeToken());
+		else if (next.isOpenGroup())
+			tokenStack.push(takeToken());
+		else if (next.isCloseGroup())
+			transferTokensUntilOpenGroup();
+		else if (isLeftHigherPrecedence(tokenStack.peek(), next))
+			transferToken();
+		else
+			tokenStack.push(takeToken());
 	}
 
-	private void pushToken() throws ParseException {
-		syntaxChecker.checkNextToken(tokenStream.peek());
-		tokenStack.push(tokenStream.next());
+	/**
+	 * Only call when a CloseGroup is next in the input. Transfers all tokens
+	 * from the tokenStack until the matching OpenGroup is found.
+	 */
+	private void transferTokensUntilOpenGroup() throws ParseException {
+		CloseGroup close = (CloseGroup) takeToken();
+		OpenGroup expectedOpen = grammar.openGroup(close);
+		while (!tokenStack.peek().isOpenGroup())
+			transferToken();
+		if (!expectedOpen.equals(tokenStack.peek()))
+			throw new ParseException(String.format(
+					"Found mismatched groupers: %s %s", tokenStack.peek(),
+					close));
+		transferToken();
 	}
 
-	private void popToken() {
-		Token buildToken = tokenStack.pop();
-		ArrayList<AST> operands = new ArrayList<AST>(buildToken.arity());
-		for (int i = 0; i < buildToken.arity(); i++)
-			operands.add(0, expressions.pop());
-		expressions.push(new AST(buildToken, operands));
+	/**
+	 * Takes the next token from the input stream
+	 */
+	private Token takeToken() {
+		Token next = tokenStream.next();
+		// TODO: check syntax here?
+		return next;
 	}
 
+	/**
+	 * Pulls top token off the tokenStack and puts it on the Reverse Polish
+	 * Notation stack
+	 */
+	private void transferToken() {
+		reversePolishStack.push(tokenStack.pop());
+	}
+
+	/**
+	 * True if the left has higher precedence than the right
+	 * 
+	 * @throws ParseException
+	 *             - If they are both identifiers
+	 */
 	private boolean isLeftHigherPrecedence(Token left, Token right)
 			throws ParseException {
 		if (left == Operation.START && right == Operation.END)
@@ -131,19 +218,17 @@ public class Parser {
 	}
 
 	private void dumpState() {
-		System.out.print("\nExpressions: ->");
-		ListIterator<AST> stackIter = expressions.listIterator(expressions.size());
-		while (stackIter.hasPrevious())
-			System.out.print("  " + stackIter.previous().toString());
-		System.out.print("  \nTokens: ->");
-		ListIterator<Token> stackIter2 = tokenStack.listIterator(tokenStack.size());
-		while (stackIter2.hasPrevious())
-			System.out.print("  " + stackIter2.previous().toString());
-		System.out.println("  \nTokensStream: " + tokenStream.toString());
+		System.out.print("\nPolish  Stack: ");
+		for (Token t : reversePolishStack)
+			System.out.print("  " + t.toString());
+		System.out.print("\n       Tokens: ");
+		for (Token t : tokenStack)
+			System.out.print("  " + t.toString());
+		System.out.println("\nTokens Stream: " + tokenStream.toString());
 	}
 
 	private void setupParse(String input) {
-		expressions = new Stack<AST>();
+		reversePolishStack = new Stack<Token>();
 
 		tokenStack = new Stack<Token>();
 		tokenStack.push(Operation.START);
@@ -152,7 +237,7 @@ public class Parser {
 		tokens.add(Operation.END);
 		tokenStream = new ListStream<Token>(tokens);
 
-		syntaxChecker.refresh();
+		// syntaxChecker.refresh();
 	}
 
 	public static Parser fromCommandLineArguments(String[] args) {
@@ -166,7 +251,7 @@ public class Parser {
 				break;
 			}
 		}
-		
+
 		if (file == null) {
 			System.err.println("Usage: [-d] path_to_grammar_spec");
 			System.exit(2);

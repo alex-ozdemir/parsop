@@ -25,7 +25,7 @@ public class ListStream<T> {
 	}
 	
 	public String toString() {
-		StringBuffer result = new StringBuffer(" ->");
+		StringBuffer result = new StringBuffer();
 		for (int i = nextIndex; i < list.size(); i++)
 			result.append("  ").append(list.get(i));
 		return result.toString();

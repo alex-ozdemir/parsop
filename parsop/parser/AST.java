@@ -22,4 +22,8 @@ public class AST {
 		result.append('}');
 		return result.toString();
 	}
+
+	public Token getNode() {
+		return node;
+	}
 }

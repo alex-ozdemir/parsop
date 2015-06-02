@@ -25,8 +25,10 @@ public class Tokenizer {
 	}
 	
 	private Token toToken(String symbol) {
-		if (this.grammar.isOperation(symbol))
-			return this.grammar.getOperation(symbol);
+		if (this.grammar.isSpecialSymbol(symbol)) {
+//			System.err.println(String.format("Token Match: %s -> %s", symbol, this.grammar.getToken(symbol)));
+			return this.grammar.getToken(symbol);
+		}
 		else
 			return new Identifier(symbol);
 	}
@@ -38,7 +40,7 @@ public class Tokenizer {
 	}
 
 	private String insertWhitespace(String input) {
-		for (String s : this.grammar.operationSymbols())
+		for (String s : this.grammar.specialSymbols())
 			input = input.replace(s, String.format(" %s ", s));
 		return input;
 	}

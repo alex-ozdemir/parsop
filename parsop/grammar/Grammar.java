@@ -12,13 +12,26 @@ import java.util.NoSuchElementException;
 import java.util.Scanner;
 import java.util.Set;
 
+import parsop.util.Pair;
+
 public class Grammar {
 
-	Map<Operation, Integer> precedenceTable;
-	Map<Operation, Associativity> associativityTable;
-	Map<String, Operation> symbolTable;
+	private static int GROUP_PRECEDENCE = Integer.MAX_VALUE-1;
+	
 	List<Set<Operation>> precedences;
 	List<Associativity> associativities;
+	List<Pair<OpenGroup,CloseGroup>> groupers;
+	
+	Map<Token, Integer> precedenceTable;
+	Map<Operation, Associativity> associativityTable;
+	
+	Map<String, Operation> symbolTable;
+	Set<String> specialSymbols;
+	
+	
+	Map<String, OpenGroup> openGroupTable;
+	Map<String, CloseGroup> closeGroupTable;
+	HashMap<CloseGroup, OpenGroup> closeToOpenTable;
 
 	/**
 	 * Given a list of operator precedence classes and the associativity of each
@@ -28,27 +41,47 @@ public class Grammar {
 	 *            - Early precedence classes bind more tightly
 	 * @param associativities
 	 *            - Indices must correspond to that of the precedence list.
+	 * @param groupers
+	 *   		  - Pairs of grouping symbols
 	 * @throws GrammarException
 	 *             - If the precedences and associativities do not line up.
 	 */
 	private Grammar(List<Set<Operation>> precedences,
-			List<Associativity> associativities) throws GrammarException {
+			List<Associativity> associativities,
+			List<Pair<OpenGroup,CloseGroup>> groupers) throws GrammarException {
 		if (precedences.size() != associativities.size())
 			throw new GrammarException(
 					"Must be an equal number of precedences and associativities!");
 		this.precedences = precedences;
 		this.associativities = associativities;
-		this.precedenceTable = new HashMap<Operation, Integer>();
+		this.groupers = groupers;
+		this.precedenceTable = new HashMap<Token, Integer>();
 		this.associativityTable = new HashMap<Operation, Associativity>();
 		this.symbolTable = new HashMap<String, Operation>();
+		this.openGroupTable = new HashMap<String, OpenGroup>();
+		this.closeGroupTable = new HashMap<String, CloseGroup>();
+		this.closeToOpenTable = new HashMap<CloseGroup, OpenGroup>();
+		this.specialSymbols = new HashSet<String>();
 		for (int i = 0; i < precedences.size(); i++) {
 			Associativity assoc = associativities.get(i);
 			for (Operation o : precedences.get(i)) {
 				this.associativityTable.put(o, assoc);
 				this.precedenceTable.put(o, i);
 				this.symbolTable.put(o.symbol, o);
-			}
+			}				
 		}
+		
+		for (Pair<OpenGroup, CloseGroup> p : groupers) {
+			this.openGroupTable.put(p.first.symbol(), p.first);
+			this.precedenceTable.put(p.first, GROUP_PRECEDENCE);
+			this.closeGroupTable.put(p.second.symbol(), p.second);
+			this.precedenceTable.put(p.second, GROUP_PRECEDENCE);
+			this.closeToOpenTable.put(p.second, p.first);
+		}
+		
+		this.specialSymbols.addAll(this.symbolTable.keySet());
+		this.specialSymbols.addAll(this.openGroupTable.keySet());
+		this.specialSymbols.addAll(this.closeGroupTable.keySet());
 
 		this.precedenceTable.put(Operation.START, Integer.MAX_VALUE);
 		this.precedenceTable.put(Operation.END, Integer.MAX_VALUE);
@@ -77,6 +110,7 @@ public class Grammar {
 			IOException {
 		List<Set<Operation>> precedences = new ArrayList<Set<Operation>>();
 		List<Associativity> associativities = new ArrayList<Associativity>();
+		List<Pair<OpenGroup, CloseGroup>> groupers = new ArrayList<Pair<OpenGroup, CloseGroup>>();
 		BufferedReader fin = new BufferedReader(new FileReader(filepath));
 		String line;
 		while ((line = fin.readLine()) != null) {
@@ -84,24 +118,40 @@ public class Grammar {
 				continue;
 			Set<Operation> precedenceClass = new HashSet<Operation>();
 			Scanner in = new Scanner(line);
-			try {
-				associativities.add(Associativity.fromString(in.next()));
-				String operation;
-				try {
-					while ((operation = in.next()) != null) {
-						precedenceClass.add(Operation.fromString(operation));
-					}
-				} catch (NoSuchElementException e) {
+			String first = in.next();
+			if (first.toLowerCase().equals("group")) {
+				OpenGroup open = new OpenGroup(in.next());
+				CloseGroup close = new CloseGroup(in.next());
+				groupers.add(new Pair<OpenGroup, CloseGroup>(open, close));
+				try{ 
+					String extraToken = in.next();
+					if (extraToken != null);
+						throw new GrammarException(String.format("Unexpected extra tokens on line: %s, such as: <%s>", line, extraToken));
+				} catch (NoSuchElementException e) {}
+				finally {
+					in.close();
 				}
-			} catch (GrammarException e) {
-				throw new GrammarException("Problem with line" + line + '\n', e);
-			} finally {
-				in.close();
 			}
-			precedences.add(precedenceClass);
+			else {
+				try {
+					associativities.add(Associativity.fromString(first));
+					String operation;
+					try {
+						while ((operation = in.next()) != null) {
+							precedenceClass.add(Operation.fromString(operation));
+						}
+					} catch (NoSuchElementException e) {
+					}
+				} catch (GrammarException e) {
+					throw new GrammarException("Problem with line" + line + '\n', e);
+				} finally {
+					in.close();
+				}
+				precedences.add(precedenceClass);
+			}
 		}
 		fin.close();
-		return new Grammar(precedences, associativities);
+		return new Grammar(precedences, associativities, groupers);
 	}
 
 	public String toString() {
@@ -112,28 +162,49 @@ public class Grammar {
 				result.append(' ').append(o.toString());
 			result.append('\n');
 		}
+		for (Pair<OpenGroup, CloseGroup> p : groupers) {
+			result.append("group ");
+			result.append(p.first);
+			result.append(' ');
+			result.append(p.second);
+			result.append('\n');
+		}
 		return result.toString();
+	}
+	
+	public OpenGroup openGroup(CloseGroup close) {
+		return this.closeToOpenTable.get(close);
 	}
 
 	/**
-	 * @return Returns the set of operation symbols in this grammar
+	 * @return Returns the set of operation and group symbols in this grammar
 	 */
-	public Set<String> operationSymbols() {
-		return this.symbolTable.keySet();
+	public Set<String> specialSymbols() {
+		return specialSymbols;
 	}
 
 	/**
 	 * Determines if the string is an operation symbol in this grammar
 	 */
-	public boolean isOperation(String s) {
-		return this.symbolTable.containsKey(s);
+	public boolean isSpecialSymbol(String s) {
+		return this.specialSymbols.contains(s);
 	}
 
 	/**
 	 * Gets an Operation object given a symbol
 	 */
-	public Operation getOperation(String s) {
-		return this.symbolTable.get(s);
+	public Token getToken(String s) {
+		if (this.symbolTable.containsKey(s))
+			return this.symbolTable.get(s);
+		else if (this.openGroupTable.containsKey(s))
+			return this.openGroupTable.get(s);
+		else if (this.closeGroupTable.containsKey(s))
+			return this.closeGroupTable.get(s);
+		else {
+			System.err.println("OH GOD NO");
+			return null;
+		}
+		
 	}
 
 	/**
@@ -149,26 +220,27 @@ public class Grammar {
 	 * 
 	 * @return Whether the left Token has higher precedence
 	 * @throws GrammarException
-	 *             if two Identifiers are being compared
+	 *             if two Identifiers are being compared do not have precedence rules
 	 */
 	public boolean leftIsTighter(Token left, Token right)
 			throws GrammarException {
+		
+		Integer leftPrecedence = this.precedenceTable.get(left);
+		Integer rightPrecedence = this.precedenceTable.get(right);
 
-		// Identifiers have highest precedence
-		if (left.isOperation() != right.isOperation())
-			return right.isOperation();
-		if (!left.isOperation())
-			throw new GrammarException(
-					String.format(
-							"Adjacent Identifiers: <%s> <%s>. Precedence is not defined between identifiers.",
-							left, right));
+		String error = String
+				.format("The following tokens do not have precedence rules: <%s> <%s>.",
+						left, right);
 		
-		int leftPrecedence = this.precedenceTable.get(left);
-		int rightPrecedence = this.precedenceTable.get(right);
-		
+		if (leftPrecedence == null || rightPrecedence == null)
+			throw new GrammarException(error);
+
 		// Handle equal precedence
-		if (leftPrecedence == rightPrecedence)
-			switch (this.associativityTable.get(left)) {
+		if (leftPrecedence == rightPrecedence) {
+			Associativity assoc = this.associativityTable.get(left);
+			if (assoc == null)
+				throw new GrammarException(error);
+			switch (assoc) {
 			case Left:
 				return true;
 			case Right:
@@ -176,6 +248,7 @@ public class Grammar {
 			default:
 				throw new Error("Associativity Enumeration is broken");
 			}
+		}
 		// Lower precedence is tighter precedence
 		else
 			return leftPrecedence < rightPrecedence;
