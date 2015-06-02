@@ -20,3 +20,6 @@ Active developments is going on with:
 Interesting paths of development might include:
    - Support for more interesting operator placement (like infix and postfix for
      binary operations, like A(B) or A[B] ).
+   - Support for different types of identifiers, particularly names and literals,
+     specified by regular expression.
+   - Supporting a system that does not use whitespace as a required separation symbol
