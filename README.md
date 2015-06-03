@@ -15,7 +15,6 @@ Currently, the supported features are:
    - Support for infix binary and prefix unary operations
 
 Active developments is going on with:
-   - Grouping symbols, under branch 'group'
 
 Interesting paths of development might include:
    - Support for more interesting operator placement (like infix and postfix for
@@ -23,3 +22,15 @@ Interesting paths of development might include:
    - Support for different types of identifiers, particularly names and literals,
      specified by regular expression.
    - Supporting a system that does not use whitespace as a required separation symbol
+   - Automated Testing
+   - Reporting failed parses in a more helpful fashion. What comes to mind is
+     something like:
+      Unexpected <+> after <+>:
+      (1+1)++(2/3)
+            ^
+
+      OR
+
+      Mismatched groupers <(> <]>:
+      (1 + 1]
+      ^     ^
