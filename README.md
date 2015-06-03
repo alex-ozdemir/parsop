@@ -25,12 +25,11 @@ Interesting paths of development might include:
    - Automated Testing
    - Reporting failed parses in a more helpful fashion. What comes to mind is
      something like:
-      Unexpected <+> after <+>:
-      (1+1)++(2/3)
-            ^
-
-      OR
-
-      Mismatched groupers <(> <]>:
-      (1 + 1]
-      ^     ^
+```
+    Unexpected <+> after <+>:
+    (1+1)++(2/3)
+           ^
+    Mismatched groupers <(> <]>:
+    (1 + 1]
+    ^     ^
+```
