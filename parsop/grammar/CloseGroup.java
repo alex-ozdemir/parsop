@@ -16,11 +16,6 @@ public class CloseGroup implements Token {
 	public String symbol() {
 		return symbol;
 	}
-	
-	@Override
-	public boolean isCloseGroup() {
-		return true;
-	}
 
 	@Override
 	public AST build(Stack<Token> reversePolishStack) {
@@ -30,5 +25,10 @@ public class CloseGroup implements Token {
 	@Override
 	public String toString() {
 		return symbol;
+	}
+
+	@Override
+	public TokenType type() {
+		return TokenType.CloseGroup;
 	}
 }

@@ -110,7 +110,7 @@ public class Parser {
 	boolean verbose;
 
 	// Members refreshed for each parse
-	// SyntaxChecker syntaxChecker;
+	SyntaxChecker syntaxChecker;
 	Stack<Token> reversePolishStack;
 	Stack<Token> tokenStack;
 	ListStream<Token> tokenStream;
@@ -119,7 +119,7 @@ public class Parser {
 		try {
 			grammar = Grammar.fromFile(filename);
 			tokenizer = new Tokenizer(grammar);
-			// syntaxChecker = new SyntaxChecker(grammar);
+			syntaxChecker = new SyntaxChecker(grammar);
 			this.verbose = verbose;
 		} catch (GrammarException e) {
 			e.printStackTrace();
@@ -182,10 +182,11 @@ public class Parser {
 
 	/**
 	 * Takes the next token from the input stream
+	 * @throws ParseException - If there is a syntax error in the input
 	 */
-	private Token takeToken() {
+	private Token takeToken() throws ParseException {
 		Token next = tokenStream.next();
-		// TODO: check syntax here?
+		syntaxChecker.checkNextToken(next);
 		return next;
 	}
 
@@ -237,7 +238,7 @@ public class Parser {
 		tokens.add(Operation.END);
 		tokenStream = new ListStream<Token>(tokens);
 
-		// syntaxChecker.refresh();
+		syntaxChecker.refresh();
 	}
 
 	public static Parser fromCommandLineArguments(String[] args) {

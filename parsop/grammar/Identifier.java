@@ -25,14 +25,14 @@ public class Identifier implements Token {
 	public AST build(Stack<Token> reversePolishStack) {
 		return new AST(this, new ArrayList<AST>());
 	}
-	
-	@Override
-	public boolean isIdentifier() {
-		return true;
-	}
 
 	@Override
 	public String symbol() {
 		return symbol;
+	}
+
+	@Override
+	public TokenType type() {
+		return TokenType.Identifier;
 	}
 }

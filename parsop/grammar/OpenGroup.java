@@ -17,11 +17,6 @@ public class OpenGroup implements Token {
 	public String symbol() {
 		return symbol;
 	}
-	
-	@Override
-	public boolean isOpenGroup() {
-		return true;
-	}
 
 	@Override
 	public AST build(Stack<Token> reversePolishStack) {
@@ -37,6 +32,11 @@ public class OpenGroup implements Token {
 	
 	public boolean equals(Object other) {
 		return (other instanceof OpenGroup && other.toString().equals(toString()));
+	}
+
+	@Override
+	public TokenType type() {
+		return TokenType.OpenGroup;
 	}
 
 }

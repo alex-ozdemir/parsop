@@ -7,18 +7,20 @@ import parsop.parser.AST;
 public interface Token {
 	
 	public default boolean isIdentifier() {
-		return false;
+		return type() == TokenType.Identifier;
 	}
 	
 	public default boolean isOpenGroup() {
-		return false;
+		return type() == TokenType.OpenGroup;
 	}
 	
 	public default boolean isCloseGroup() {
-		return false;
+		return type() == TokenType.CloseGroup;
 	}
 	
 	public String symbol();
+	
+	public TokenType type();
 	
 	public AST build(Stack<Token> expressions);
 	

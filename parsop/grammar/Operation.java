@@ -6,11 +6,12 @@ import java.util.Stack;
 import parsop.parser.AST;
 
 public class Operation implements Token {
-	public static Operation START = new Operation("START", -1);
-	public static Operation END = new Operation("END", -2);
+	public static Operation START = new Operation("START", -1, TokenType.Start);
+	public static Operation END = new Operation("END", -2, TokenType.End);
 
 	String symbol;
 	int arity;
+	TokenType type;
 	
 	/**
 	 * Constructs an operation from its symbol and arity.
@@ -20,6 +21,12 @@ public class Operation implements Token {
 	public Operation(String symbol, int arity) {
 		this.symbol = symbol;
 		this.arity = arity;
+		this.type = TokenType.Invalid;
+	}
+	
+	public Operation(String symbol, int arity, TokenType type) {
+		this(symbol, arity);
+		this.type = type; 
 	}
 
 	public static Operation fromString(String encoding) throws GrammarException {
@@ -31,7 +38,7 @@ public class Operation implements Token {
 		case 2:
 			return new BinaryOperation(symbol, arity);
 		default:
-			throw new GrammarException(String.format("The encoding <%s> has arity %d", encoding, arity));
+			throw new GrammarException(String.format("The encoding <%s> has arity %d. Only Unary and Binary Operations supported", encoding, arity));
 		}
 	}
 	
@@ -53,6 +60,11 @@ public class Operation implements Token {
 	
 	public String symbol() {
 		return symbol;
+	}
+
+	@Override
+	public TokenType type() {
+		return type;
 	}
 
 }
