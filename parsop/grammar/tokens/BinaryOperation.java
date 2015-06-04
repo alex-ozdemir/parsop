@@ -1,4 +1,4 @@
-package parsop.grammar;
+package parsop.grammar.tokens;
 
 public class BinaryOperation extends Operation {
 

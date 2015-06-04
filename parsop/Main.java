@@ -15,7 +15,9 @@ public class Main {
 		String line;
 		try {
 			while (!(line = stdin.nextLine()).equals(""))
-				System.out.println(parser.parse(line));
+				try{
+					System.out.println(parser.parse(line));
+				} catch (ParseException e) {/* Nothing */ }
 		} catch (NoSuchElementException e) { }
 
 		System.out.println("Goodbye!");

@@ -1,4 +1,4 @@
-package parsop.grammar;
+package parsop.grammar.tokens;
 
 import java.util.Stack;
 
@@ -18,6 +18,9 @@ public interface Token {
 		return type() == TokenType.CloseGroup;
 	}
 	
+	/**
+	 * The symbol of a token is the input that maps to it in the parsed string.
+	 */
 	public String symbol();
 	
 	public TokenType type();
@@ -29,4 +32,12 @@ public interface Token {
 	 * Token -> String map must be injective.
 	 */
 	public String toString();
+	
+	public int getIndex();
+	
+	public Token cloneWithIndex(int i);
+	
+	public int hashCode();
+	
+	public boolean equals(Object other);
 }

@@ -12,23 +12,26 @@ import java.util.NoSuchElementException;
 import java.util.Scanner;
 import java.util.Set;
 
+import parsop.grammar.tokens.CloseGroup;
+import parsop.grammar.tokens.OpenGroup;
+import parsop.grammar.tokens.Operation;
+import parsop.grammar.tokens.Token;
 import parsop.util.Pair;
 
 public class Grammar {
 
-	private static int GROUP_PRECEDENCE = Integer.MAX_VALUE-1;
-	
+	private static int GROUP_PRECEDENCE = Integer.MAX_VALUE - 1;
+
 	List<Set<Operation>> precedences;
 	List<Associativity> associativities;
-	List<Pair<OpenGroup,CloseGroup>> groupers;
-	
+	List<Pair<OpenGroup, CloseGroup>> groupers;
+
 	Map<Token, Integer> precedenceTable;
 	Map<Operation, Associativity> associativityTable;
-	
+
 	Map<String, Operation> symbolTable;
 	Set<String> specialSymbols;
-	
-	
+
 	Map<String, OpenGroup> openGroupTable;
 	Map<String, CloseGroup> closeGroupTable;
 	HashMap<CloseGroup, OpenGroup> closeToOpenTable;
@@ -42,13 +45,12 @@ public class Grammar {
 	 * @param associativities
 	 *            - Indices must correspond to that of the precedence list.
 	 * @param groupers
-	 *   		  - Pairs of grouping symbols
+	 *            - Pairs of grouping symbols
 	 * @throws GrammarException
 	 *             - If the precedences and associativities do not line up.
 	 */
-	private Grammar(List<Set<Operation>> precedences,
-			List<Associativity> associativities,
-			List<Pair<OpenGroup,CloseGroup>> groupers) throws GrammarException {
+	private Grammar(List<Set<Operation>> precedences, List<Associativity> associativities,
+			List<Pair<OpenGroup, CloseGroup>> groupers) throws GrammarException {
 		if (precedences.size() != associativities.size())
 			throw new GrammarException(
 					"Must be an equal number of precedences and associativities!");
@@ -67,10 +69,10 @@ public class Grammar {
 			for (Operation o : precedences.get(i)) {
 				this.associativityTable.put(o, assoc);
 				this.precedenceTable.put(o, i);
-				this.symbolTable.put(o.symbol, o);
-			}				
+				this.symbolTable.put(o.symbol(), o);
+			}
 		}
-		
+
 		for (Pair<OpenGroup, CloseGroup> p : groupers) {
 			this.openGroupTable.put(p.first.symbol(), p.first);
 			this.precedenceTable.put(p.first, GROUP_PRECEDENCE);
@@ -78,7 +80,7 @@ public class Grammar {
 			this.precedenceTable.put(p.second, GROUP_PRECEDENCE);
 			this.closeToOpenTable.put(p.second, p.first);
 		}
-		
+
 		this.specialSymbols.addAll(this.symbolTable.keySet());
 		this.specialSymbols.addAll(this.openGroupTable.keySet());
 		this.specialSymbols.addAll(this.closeGroupTable.keySet());
@@ -106,8 +108,7 @@ public class Grammar {
 	 * @throws IOException
 	 *             if the file cannot be read for some reason.
 	 */
-	public static Grammar fromFile(String filepath) throws GrammarException,
-			IOException {
+	public static Grammar fromFile(String filepath) throws GrammarException, IOException {
 		List<Set<Operation>> precedences = new ArrayList<Set<Operation>>();
 		List<Associativity> associativities = new ArrayList<Associativity>();
 		List<Pair<OpenGroup, CloseGroup>> groupers = new ArrayList<Pair<OpenGroup, CloseGroup>>();
@@ -123,22 +124,25 @@ public class Grammar {
 				OpenGroup open = new OpenGroup(in.next());
 				CloseGroup close = new CloseGroup(in.next());
 				groupers.add(new Pair<OpenGroup, CloseGroup>(open, close));
-				try{ 
+				try {
 					String extraToken = in.next();
-					if (extraToken != null);
-						throw new GrammarException(String.format("Unexpected extra tokens on line: %s, such as: <%s>", line, extraToken));
-				} catch (NoSuchElementException e) {}
-				finally {
+					if (extraToken != null)
+						;
+					throw new GrammarException(String.format(
+							"Unexpected extra tokens on line: %s, such as: <%s>", line, extraToken));
+				} catch (NoSuchElementException e) {
+				} finally {
 					in.close();
 				}
-			}
-			else {
+			} else {
 				try {
 					associativities.add(Associativity.fromString(first));
 					String operation;
 					try {
 						while ((operation = in.next()) != null) {
-							precedenceClass.add(Operation.fromString(operation));
+							Operation op = Operation.fromString(operation);
+							checkOverlappingOperations(precedences, precedenceClass, op);
+							precedenceClass.add(op);
 						}
 					} catch (NoSuchElementException e) {
 					}
@@ -152,6 +156,22 @@ public class Grammar {
 		}
 		fin.close();
 		return new Grammar(precedences, associativities, groupers);
+	}
+
+	private static void checkOverlappingOperations(List<Set<Operation>> precedences,
+			Set<Operation> precedenceClass, Operation op) throws GrammarException {
+		for (Set<Operation> precClass : precedences)
+			for (Operation otherOp : precClass)
+				reportOverlappingOperations(op, otherOp);
+		for (Operation otherOp : precedenceClass)
+			reportOverlappingOperations(op, otherOp);
+	}
+
+	private static void reportOverlappingOperations(Operation op, Operation otherOp)
+			throws GrammarException {
+		if (op.symbol().indexOf(otherOp.symbol()) != -1
+				|| otherOp.symbol().indexOf(op.symbol()) != -1)
+			throw new GrammarException(String.format("Operations %s and %s overlap", otherOp, op));
 	}
 
 	public String toString() {
@@ -171,7 +191,7 @@ public class Grammar {
 		}
 		return result.toString();
 	}
-	
+
 	public OpenGroup openGroup(CloseGroup close) {
 		return this.closeToOpenTable.get(close);
 	}
@@ -204,7 +224,7 @@ public class Grammar {
 			System.err.println("OH GOD NO");
 			return null;
 		}
-		
+
 	}
 
 	/**
@@ -220,18 +240,17 @@ public class Grammar {
 	 * 
 	 * @return Whether the left Token has higher precedence
 	 * @throws GrammarException
-	 *             if two Identifiers are being compared do not have precedence rules
+	 *             if two Identifiers are being compared do not have precedence
+	 *             rules
 	 */
-	public boolean leftIsTighter(Token left, Token right)
-			throws GrammarException {
-		
+	public boolean leftIsTighter(Token left, Token right) throws GrammarException {
+
 		Integer leftPrecedence = this.precedenceTable.get(left);
 		Integer rightPrecedence = this.precedenceTable.get(right);
 
-		String error = String
-				.format("The following tokens do not have precedence rules: <%s> <%s>.",
-						left, right);
-		
+		String error = String.format(
+				"The following tokens do not have precedence rules: <%s> <%s>.", left, right);
+
 		if (leftPrecedence == null || rightPrecedence == null)
 			throw new GrammarException(error);
 

@@ -5,12 +5,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Stack;
 
-import parsop.grammar.CloseGroup;
 import parsop.grammar.Grammar;
 import parsop.grammar.GrammarException;
-import parsop.grammar.OpenGroup;
-import parsop.grammar.Operation;
-import parsop.grammar.Token;
+import parsop.grammar.tokens.Operation;
+import parsop.grammar.tokens.Token;
 import parsop.util.ListStream;
 
 /**
@@ -111,6 +109,8 @@ public class Parser {
 
 	// Members refreshed for each parse
 	SyntaxChecker syntaxChecker;
+	ErrorReporter errorReporter;
+	
 	Stack<Token> reversePolishStack;
 	Stack<Token> tokenStack;
 	ListStream<Token> tokenStream;
@@ -120,6 +120,7 @@ public class Parser {
 			grammar = Grammar.fromFile(filename);
 			tokenizer = new Tokenizer(grammar);
 			syntaxChecker = new SyntaxChecker(grammar);
+			errorReporter = new ErrorReporter(tokenizer);			
 			this.verbose = verbose;
 		} catch (GrammarException e) {
 			e.printStackTrace();
@@ -130,7 +131,12 @@ public class Parser {
 
 	public AST parse(String input) throws ParseException {
 		setupParse(input);
-		processTokens();
+		try {
+			processTokens();
+		} catch (ParseException e) {
+			errorReporter.reportError(e, e.indices);
+			throw e;
+		}
 		if (verbose)
 			dumpState();
 		return processReversePolish();
@@ -166,17 +172,12 @@ public class Parser {
 
 	/**
 	 * Only call when a CloseGroup is next in the input. Transfers all tokens
-	 * from the tokenStack until the matching OpenGroup is found.
+	 * from the tokenStack until an OpenGroup is found.
 	 */
 	private void transferTokensUntilOpenGroup() throws ParseException {
-		CloseGroup close = (CloseGroup) takeToken();
-		OpenGroup expectedOpen = grammar.openGroup(close);
+		takeToken();
 		while (!tokenStack.peek().isOpenGroup())
 			transferToken();
-		if (!expectedOpen.equals(tokenStack.peek()))
-			throw new ParseException(String.format(
-					"Found mismatched groupers: %s %s", tokenStack.peek(),
-					close));
 		transferToken();
 	}
 
@@ -214,7 +215,7 @@ public class Parser {
 			throw new ParseException(
 					String.format(
 							"Adjacent identifiers: <%s> and <%s>. Expected an operation between them",
-							left, right));
+							left, right), left.getIndex(), right.getIndex());
 		}
 	}
 
@@ -229,16 +230,23 @@ public class Parser {
 	}
 
 	private void setupParse(String input) {
+		// Empty Stack to build RPN on
 		reversePolishStack = new Stack<Token>();
 
+		// Empty intermediary stack and add START
 		tokenStack = new Stack<Token>();
 		tokenStack.push(Operation.START);
 
+		// Add END to stream
 		List<Token> tokens = tokenizer.tokenize(input);
 		tokens.add(Operation.END);
 		tokenStream = new ListStream<Token>(tokens);
 
+		// Restart syntax checking
 		syntaxChecker.refresh();
+		
+		// Restart error reporter
+		errorReporter.setInput(input);
 	}
 
 	public static Parser fromCommandLineArguments(String[] args) {

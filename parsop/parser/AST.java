@@ -2,7 +2,7 @@ package parsop.parser;
 
 import java.util.List;
 
-import parsop.grammar.Token;
+import parsop.grammar.tokens.Token;
 
 public class AST {
 	

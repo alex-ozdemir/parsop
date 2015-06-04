@@ -13,6 +13,16 @@ beyond that specified by the operators alone.
 Currently, the supported features are:
    - Arbitrary precedence classes and associativity rules within those classes.
    - Support for infix binary and prefix unary operations
+   - Support for arbitrary pairs of grouping symbols
+   - Errors formatted like so:
+```
+    Syntax Error: token <+> followed by <+>
+    (1+1)++(2/3)
+         ^^
+    Syntax Error: Mismatched groupers: <(> <]>
+    (1 + 1]
+    ^     ^
+```
 
 Active developments is going on with:
 
@@ -23,13 +33,3 @@ Interesting paths of development might include:
      specified by regular expression.
    - Supporting a system that does not use whitespace as a required separation symbol
    - Automated Testing
-   - Reporting failed parses in a more helpful fashion. What comes to mind is
-     something like:
-```
-    Unexpected <+> after <+>:
-    (1+1)++(2/3)
-           ^
-    Mismatched groupers <(> <]>:
-    (1 + 1]
-    ^     ^
-```

@@ -4,12 +4,12 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.Stack;
 
-import parsop.grammar.CloseGroup;
 import parsop.grammar.Grammar;
-import parsop.grammar.OpenGroup;
-import parsop.grammar.Operation;
-import parsop.grammar.Token;
-import parsop.grammar.TokenType;
+import parsop.grammar.tokens.CloseGroup;
+import parsop.grammar.tokens.OpenGroup;
+import parsop.grammar.tokens.Operation;
+import parsop.grammar.tokens.Token;
+import parsop.grammar.tokens.TokenType;
 import parsop.util.Pair;
 
 /**
@@ -66,7 +66,7 @@ public class SyntaxChecker {
 	private void checkEndCondition(Token t) throws ParseException {
 		if (t.type() == TokenType.End)
 			if (!openGroupers.isEmpty())
-				throw new ParseException("Unmatched closing groupers!");
+				throw new ParseException("Unmatched closing groupers!", openGroupers.peek().getIndex());
 	}
 
 	/**
@@ -79,7 +79,7 @@ public class SyntaxChecker {
 		if (!acceptableTokenPairs.contains(new Pair<TokenType, TokenType>(lastToken.type(), t
 				.type())))
 			throw new ParseException(String.format("Syntax Error: token <%s> followed by <%s>",
-					lastToken.symbol(), t.symbol()));
+					lastToken.symbol(), t.symbol()), lastToken.getIndex(), t.getIndex());
 	}
 
 	/**
@@ -95,12 +95,12 @@ public class SyntaxChecker {
 		if (t.isCloseGroup()) {
 			if (openGroupers.isEmpty())
 				throw new ParseException(
-						String.format("Unmatched closing grouper <%s>", t.symbol()));
+						String.format("Unmatched closing grouper <%s>", t.symbol()), t.getIndex());
 			OpenGroup match = openGroupers.pop();
-			if (match != grammar.openGroup((CloseGroup) t))
+			if (!match.equals(grammar.openGroup((CloseGroup) t)))
 				throw new ParseException(String.format(
 						"Syntax Error: Mismatched groupers: <%s> <%s>", match.symbol(),
-						t.symbol()));
+						t.symbol()), match.getIndex(), t.getIndex());
 		}
 	}
 
